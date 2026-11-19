@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Akıllı Çimlendirme Kontrol Paneli</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8; --green: #22c55e; --red: #ef4444; --blue: #3b82f6; }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); margin: 0; padding: 16px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 14px; }
+    .header { background: var(--card); padding: 16px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 18px; margin: 0; }
+    .badge { padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .online { background: rgba(34, 197, 94, 0.2); color: var(--green); }
+    .offline { background: rgba(239, 68, 68, 0.2); color: var(--red); }
+    .card { background: var(--card); padding: 16px; border-radius: 14px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .stat-box { background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; text-align: center; }
+    .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .stat-val { font-size: 18px; font-weight: 700; }
+    .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; color: white; transition: 0.2s; }
+    .btn-on { background: var(--green); }
+    .btn-off { background: var(--red); }
+    .btn-blue { background: var(--blue); }
+    .btn-outline { background: transparent; border: 1px solid #475569; color: var(--muted); margin-top: 8px; }
+    .chat-box { background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; font-size: 13px; color: #e2e8f0; min-height: 54px; margin-bottom: 10px; line-height: 1.4; }
+    .chat-input-row { display: flex; gap: 8px; }
+    input { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 14px; }
+    .seed-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .chip { background: #334155; color: #e2e8f0; border: none; padding: 6px 10px; border-radius: 16px; font-size: 12px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>Çimlendirme Ünitesi</h1>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">ID: <span id="devIdLabel">-</span></div>
+      </div>
+      <span id="connStatus" class="badge offline">Çevrimdışı</span>
+    </div>
+
+    <div class="card grid">
+      <div class="stat-box">
+        <div class="stat-label">Su Seviyesi</div>
+        <div id="suVal" class="stat-val">-</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Besin / TDS</div>
+        <div id="tdsVal" class="stat-val">- ppm</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Aktif Reçete</div>
+        <div id="tohumVal" class="stat-val" style="font-size: 14px;">-</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Kayıtlı Ağ</div>
+        <div id="wifiVal" class="stat-val" style="font-size: 14px;">-</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size: 14px; font-weight: 600; margin-bottom: 10px;">Cihaz Kontrolleri</div>
+      <button id="btnGuc" class="btn btn-off" onclick="toggleGuc()">Ana Güç (Tapo): KAPALI</button>
+      <button id="btnPompa" class="btn btn-off" style="margin-top: 10px;" onclick="togglePompa()">Su Pompası: KAPALI</button>
+    </div>
+
+    <div class="card">
+      <div style="font-size: 14px; font-weight: 600; margin-bottom: 8px;">Tohum Reçete Asistanı</div>
+      <div class="seed-chips">
+        <button class="chip" onclick="soruGonder('Maş Fasulyesi')">Maş Fasulyesi</button>
+        <button class="chip" onclick="soruGonder('Yonca')">Yonca</button>
+        <button class="chip" onclick="soruGonder('Brokoli')">Brokoli</button>
+        <button class="chip" onclick="soruGonder('Mercimek')">Mercimek</button>
+      </div>
+      <div id="chatLog" class="chat-box">Reçete seçmek için yukarıdaki tohumlara dokunun veya aşağıya yazın.</div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Tohum adı yazın (örn: Nohut)...">
+        <button class="btn btn-blue" style="width: auto; padding: 10px 16px;" onclick="manuelSoru()">Gönder</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="btn btn-outline" onclick="wifiSifirla()">Cihaz Wi-Fi Ayarını Sıfırla</button>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const deviceID = (params.get("id") || "DCAF2CE81F84").toUpperCase();
+    document.getElementById("devIdLabel").innerText = deviceID;
+
+    let state = { guc: false, pompa: false };
+    const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
+
+    client.on("connect", () => {
+      client.subscribe(`sera/${deviceID}/durum`);
+      client.subscribe(`sera/${deviceID}/online`);
+      client.subscribe(`sera/${deviceID}/chat`);
+    });
+
+    client.on("message", (topic, message) => {
+      const payload = message.toString();
+      if (topic.endsWith("/online")) {
+        const badge = document.getElementById("connStatus");
+        if (payload === "1") {
+          badge.innerText = "Çevrimiçi";
+          badge.className = "badge online";
+        } else {
+          badge.innerText = "Çevrimdışı";
+          badge.className = "badge offline";
+        }
+      } else if (topic.endsWith("/durum")) {
+        const data = JSON.parse(payload);
+        state.guc = data.guc;
+        state.pompa = data.pompa;
+        document.getElementById("suVal").innerText = data.su ? "Yeterli" : "Su Bitti!";
+        document.getElementById("suVal").style.color = data.su ? "#22c55e" : "#ef4444";
+        document.getElementById("tdsVal").innerText = data.tds + " ppm";
+        document.getElementById("tohumVal").innerText = data.tohum;
+        document.getElementById("wifiVal").innerText = data.wifi;
+
+        const btnGuc = document.getElementById("btnGuc");
+        btnGuc.innerText = `Ana Güç (Tapo): ${state.guc ? "AÇIK" : "KAPALI"}`;
+        btnGuc.className = `btn ${state.guc ? "btn-on" : "btn-off"}`;
+
+        const btnPompa = document.getElementById("btnPompa");
+        btnPompa.innerText = `Su Pompası: ${state.pompa ? "AÇIK" : "KAPALI"}`;
+        btnPompa.className = `btn ${state.pompa ? "btn-on" : "btn-off"}`;
+      } else if (topic.endsWith("/chat")) {
+        document.getElementById("chatLog").innerText = payload;
+      }
+    });
+
+    function komutGonder(obj) {
+      client.publish(`sera/${deviceID}/komut`, JSON.stringify(obj));
+    }
+
+    function toggleGuc() { komutGonder({ guc: !state.guc }); }
+    function togglePompa() { komutGonder({ pompa: !state.pompa }); }
+    function soruGonder(metin) { komutGonder({ soru: metin }); }
+    function manuelSoru() {
+      const inp = document.getElementById("chatInput");
+      if (inp.value.trim()) {
+        soruGonder(inp.value.trim());
+        inp.value = "";
+      }
+    }
+    function wifiSifirla() {
+      if (confirm("Cihazın kayıtlı Wi-Fi ağı silinecek ve kurulum moduna geçecek. Onaylıyor musunuz?")) {
+        komutGonder({ wifi_reset: true });
+      }
+    }
+  </script>
+</body>
+</html>
