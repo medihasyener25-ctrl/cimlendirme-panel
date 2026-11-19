@@ -1,157 +1,252 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Akıllı Çimlendirme Kontrol Paneli</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
-    :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8; --green: #22c55e; --red: #ef4444; --blue: #3b82f6; }
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-inner: #0f172a;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --green: #22c55e;
+      --red: #ef4444;
+      --blue: #3b82f6;
+    }
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); color: var(--text); margin: 0; padding: 16px; display: flex; justify-content: center; }
-    .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 14px; }
-    .header { background: var(--card); padding: 16px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; }
-    .header h1 { font-size: 18px; margin: 0; }
-    .badge { padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-    .online { background: rgba(34, 197, 94, 0.2); color: var(--green); }
-    .offline { background: rgba(239, 68, 68, 0.2); color: var(--red); }
-    .card { background: var(--card); padding: 16px; border-radius: 14px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .stat-box { background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; text-align: center; }
-    .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-    .stat-val { font-size: 18px; font-weight: 700; }
-    .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; color: white; transition: 0.2s; }
-    .btn-on { background: var(--green); }
-    .btn-off { background: var(--red); }
-    .btn-blue { background: var(--blue); }
-    .btn-outline { background: transparent; border: 1px solid #475569; color: var(--muted); margin-top: 8px; }
-    .chat-box { background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; font-size: 13px; color: #e2e8f0; min-height: 54px; margin-bottom: 10px; line-height: 1.4; }
-    .chat-input-row { display: flex; gap: 8px; }
-    input { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 14px; }
-    .seed-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-    .chip { background: #334155; color: #e2e8f0; border: none; padding: 6px 10px; border-radius: 16px; font-size: 12px; cursor: pointer; }
+    body {
+      margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
+    }
+    .box {
+      width: 100%; max-width: 480px; background: var(--card);
+      border-radius: 16px; padding: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .header { display: flex; justify-content: space-between; align-items: center; }
+    .title { font-size: 1.25rem; font-weight: 700; }
+    .sub { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+    .badge {
+      padding: 6px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+      background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .badge.online {
+      background: rgba(34, 197, 94, 0.15); color: var(--green); border-color: rgba(34, 197, 94, 0.3);
+    }
+    .grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    .stat {
+      background: var(--card-inner); border-radius: 12px; padding: 14px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+    .stat-val { font-size: 1.2rem; font-weight: 700; }
+    .ok { color: var(--green); }
+    .err { color: var(--red); }
+
+    .led-wrap { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+    .led {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #475569; box-shadow: 0 0 4px rgba(0,0,0,0.5);
+      transition: all 0.3s ease;
+    }
+    .led.on {
+      background: var(--green);
+      box-shadow: 0 0 12px var(--green), 0 0 20px rgba(34, 197, 94, 0.6);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.85; }
+      50% { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.85; }
+    }
+
+    .sec-title { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
+    .btn-tapo {
+      width: 100%; padding: 16px; border: none; border-radius: 12px;
+      font-size: 1.05rem; font-weight: 700; color: #fff; cursor: pointer;
+      background: var(--red); transition: background 0.2s, transform 0.1s;
+    }
+    .btn-tapo.on { background: var(--green); }
+    .btn-tapo:active { transform: scale(0.98); }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .chip {
+      background: #334155; color: var(--text); border: none; border-radius: 999px;
+      padding: 6px 14px; font-size: 0.85rem; cursor: pointer;
+    }
+    .chip:hover { background: var(--blue); }
+    .chat-box {
+      background: var(--card-inner); border-radius: 10px; padding: 12px;
+      font-size: 0.9rem; color: #cbd5e1; min-height: 48px; line-height: 1.4;
+    }
+    .status-note {
+      font-size: 0.78rem; color: var(--muted); text-align: center; margin-top: 8px;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
+
+  <div class="box">
     <div class="header">
       <div>
-        <h1>Çimlendirme Ünitesi</h1>
-        <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">ID: <span id="devIdLabel">-</span></div>
+        <div class="title">Çimlendirme Ünitesi</div>
+        <div class="sub" id="devIdText">ID: Yükleniyor...</div>
       </div>
-      <span id="connStatus" class="badge offline">Çevrimdışı</span>
+      <div class="badge" id="connBadge">Çevrimdışı</div>
     </div>
+  </div>
 
-    <div class="card grid">
-      <div class="stat-box">
+  <div class="box">
+    <div class="grid">
+      <div class="stat">
         <div class="stat-label">Su Seviyesi</div>
-        <div id="suVal" class="stat-val">-</div>
+        <div class="stat-val" id="suVal">-</div>
       </div>
-      <div class="stat-box">
+      <div class="stat">
+        <div class="stat-label">Su Pompası Durumu</div>
+        <div class="led-wrap">
+          <span class="led" id="pompaLed"></span>
+          <span class="stat-val" id="pompaText" style="font-size: 1rem;">Kapalı</span>
+        </div>
+      </div>
+      <div class="stat">
         <div class="stat-label">Besin / TDS</div>
-        <div id="tdsVal" class="stat-val">- ppm</div>
+        <div class="stat-val" id="tdsVal">- ppm</div>
       </div>
-      <div class="stat-box">
+      <div class="stat">
         <div class="stat-label">Aktif Reçete</div>
-        <div id="tohumVal" class="stat-val" style="font-size: 14px;">-</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Kayıtlı Ağ</div>
-        <div id="wifiVal" class="stat-val" style="font-size: 14px;">-</div>
+        <div class="stat-val" id="tohumVal" style="font-size: 1rem;">-</div>
       </div>
     </div>
+    <div class="status-note" id="bilgiNotu">Sistem durumu bekleniyor...</div>
+  </div>
 
-    <div class="card">
-      <div style="font-size: 14px; font-weight: 600; margin-bottom: 10px;">Cihaz Kontrolleri</div>
-      <button id="btnGuc" class="btn btn-off" onclick="toggleGuc()">Ana Güç (Tapo): KAPALI</button>
-      <button id="btnPompa" class="btn btn-off" style="margin-top: 10px;" onclick="togglePompa()">Su Pompası: KAPALI</button>
-    </div>
+  <div class="box">
+    <div class="sec-title">Ana Güç Kontrolü (Tapo Priz)</div>
+    <button class="btn-tapo" id="btnTapo" onclick="toggleTapo()">Ana Güç (Tapo): KAPALI</button>
+  </div>
 
-    <div class="card">
-      <div style="font-size: 14px; font-weight: 600; margin-bottom: 8px;">Tohum Reçete Asistanı</div>
-      <div class="seed-chips">
-        <button class="chip" onclick="soruGonder('Maş Fasulyesi')">Maş Fasulyesi</button>
-        <button class="chip" onclick="soruGonder('Yonca')">Yonca</button>
-        <button class="chip" onclick="soruGonder('Brokoli')">Brokoli</button>
-        <button class="chip" onclick="soruGonder('Mercimek')">Mercimek</button>
-      </div>
-      <div id="chatLog" class="chat-box">Reçete seçmek için yukarıdaki tohumlara dokunun veya aşağıya yazın.</div>
-      <div class="chat-input-row">
-        <input type="text" id="chatInput" placeholder="Tohum adı yazın (örn: Nohut)...">
-        <button class="btn btn-blue" style="width: auto; padding: 10px 16px;" onclick="manuelSoru()">Gönder</button>
-      </div>
+  <div class="box">
+    <div class="sec-title">Tohum Reçete Asistanı</div>
+    <div class="chips">
+      <button class="chip" onclick="secTohum('Maş Fasulyesi')">Maş Fasulyesi</button>
+      <button class="chip" onclick="secTohum('Yonca')">Yonca</button>
+      <button class="chip" onclick="secTohum('Brokoli')">Brokoli</button>
+      <button class="chip" onclick="secTohum('Mercimek')">Mercimek</button>
     </div>
-
-    <div class="card">
-      <button class="btn btn-outline" onclick="wifiSifirla()">Cihaz Wi-Fi Ayarını Sıfırla</button>
-    </div>
+    <div class="chat-box" id="chatBox">Reçete seçmek için yukarıdaki tohumlara dokunun.</div>
   </div>
 
   <script>
     const params = new URLSearchParams(window.location.search);
-    const deviceID = (params.get("id") || "DCAF2CE81F84").toUpperCase();
-    document.getElementById("devIdLabel").innerText = deviceID;
+    const deviceId = (params.get("id") || "DCAF2CE81F84").trim();
+    document.getElementById("devIdText").innerText = "ID: " + deviceId;
 
-    let state = { guc: false, pompa: false };
-    const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
+    const topicDurum  = `sera/${deviceId}/durum`;
+    const topicKomut  = `sera/${deviceId}/komut`;
+    const topicOnline = `sera/${deviceId}/online`;
+    const topicChat   = `sera/${deviceId}/chat`;
+
+    let tapoAcik = false;
+    let sonVeriZamani = 0;
+
+    const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt", {
+      clientId: "WebPanel_" + Math.random().toString(16).substr(2, 6),
+      clean: true,
+      reconnectPeriod: 3000
+    });
+
+    function setOnline(durum) {
+      const badge = document.getElementById("connBadge");
+      if (durum) {
+        badge.innerText = "Çevrimiçi";
+        badge.classList.add("online");
+      } else {
+        badge.innerText = "Çevrimdışı";
+        badge.classList.remove("online");
+      }
+    }
 
     client.on("connect", () => {
-      client.subscribe(`sera/${deviceID}/durum`);
-      client.subscribe(`sera/${deviceID}/online`);
-      client.subscribe(`sera/${deviceID}/chat`);
+      client.subscribe([topicDurum, topicOnline, topicChat]);
     });
 
-    client.on("message", (topic, message) => {
-      const payload = message.toString();
-      if (topic.endsWith("/online")) {
-        const badge = document.getElementById("connStatus");
-        if (payload === "1") {
-          badge.innerText = "Çevrimiçi";
-          badge.className = "badge online";
-        } else {
-          badge.innerText = "Çevrimdışı";
-          badge.className = "badge offline";
-        }
-      } else if (topic.endsWith("/durum")) {
-        const data = JSON.parse(payload);
-        state.guc = data.guc;
-        state.pompa = data.pompa;
-        document.getElementById("suVal").innerText = data.su ? "Yeterli" : "Su Bitti!";
-        document.getElementById("suVal").style.color = data.su ? "#22c55e" : "#ef4444";
-        document.getElementById("tdsVal").innerText = data.tds + " ppm";
-        document.getElementById("tohumVal").innerText = data.tohum;
-        document.getElementById("wifiVal").innerText = data.wifi;
+    client.on("message", (topic, payload) => {
+      const msg = payload.toString();
+      if (topic === topicOnline) {
+        setOnline(msg === "1");
+      } else if (topic === topicDurum) {
+        setOnline(true);
+        sonVeriZamani = Date.now();
+        try {
+          const d = JSON.parse(msg);
+          
+          const suEl = document.getElementById("suVal");
+          if (d.su) {
+            suEl.innerText = "Yeterli";
+            suEl.className = "stat-val ok";
+          } else {
+            suEl.innerText = "Su Bitti!";
+            suEl.className = "stat-val err";
+          }
 
-        const btnGuc = document.getElementById("btnGuc");
-        btnGuc.innerText = `Ana Güç (Tapo): ${state.guc ? "AÇIK" : "KAPALI"}`;
-        btnGuc.className = `btn ${state.guc ? "btn-on" : "btn-off"}`;
+          const ledEl = document.getElementById("pompaLed");
+          const pText = document.getElementById("pompaText");
+          if (d.pompa) {
+            ledEl.classList.add("on");
+            pText.innerText = "Çalışıyor";
+            pText.className = "stat-val ok";
+          } else {
+            ledEl.classList.remove("on");
+            pText.innerText = "Kapalı";
+            pText.className = "stat-val";
+          }
 
-        const btnPompa = document.getElementById("btnPompa");
-        btnPompa.innerText = `Su Pompası: ${state.pompa ? "AÇIK" : "KAPALI"}`;
-        btnPompa.className = `btn ${state.pompa ? "btn-on" : "btn-off"}`;
-      } else if (topic.endsWith("/chat")) {
-        document.getElementById("chatLog").innerText = payload;
+          if (d.tds !== undefined) document.getElementById("tdsVal").innerText = d.tds + " ppm";
+          if (d.tohum) document.getElementById("tohumVal").innerText = d.tohum;
+          if (d.bilgi) document.getElementById("bilgiNotu").innerText = "Durum: " + d.bilgi;
+
+          if (d.guc !== undefined) {
+            tapoAcik = d.guc;
+            guncelleTapoButon();
+          }
+        } catch (e) {}
+      } else if (topic === topicChat) {
+        document.getElementById("chatBox").innerText = msg;
       }
     });
 
-    function komutGonder(obj) {
-      client.publish(`sera/${deviceID}/komut`, JSON.stringify(obj));
+    setInterval(() => {
+      if (sonVeriZamani > 0 && Date.now() - sonVeriZamani > 10000) {
+        setOnline(false);
+      }
+    }, 3000);
+
+    function guncelleTapoButon() {
+      const btn = document.getElementById("btnTapo");
+      if (tapoAcik) {
+        btn.innerText = "Ana Güç (Tapo): AÇIK";
+        btn.classList.add("on");
+      } else {
+        btn.innerText = "Ana Güç (Tapo): KAPALI";
+        btn.classList.remove("on");
+      }
     }
 
-    function toggleGuc() { komutGonder({ guc: !state.guc }); }
-    function togglePompa() { komutGonder({ pompa: !state.pompa }); }
-    function soruGonder(metin) { komutGonder({ soru: metin }); }
-    function manuelSoru() {
-      const inp = document.getElementById("chatInput");
-      if (inp.value.trim()) {
-        soruGonder(inp.value.trim());
-        inp.value = "";
-      }
+    function toggleTapo() {
+      tapoAcik = !tapoAcik;
+      guncelleTapoButon();
+      client.publish(topicKomut, JSON.stringify({ guc: tapoAcik }));
     }
-    function wifiSifirla() {
-      if (confirm("Cihazın kayıtlı Wi-Fi ağı silinecek ve kurulum moduna geçecek. Onaylıyor musunuz?")) {
-        komutGonder({ wifi_reset: true });
-      }
+
+    function secTohum(isim) {
+      document.getElementById("chatBox").innerText = isim + " reçetesi gönderiliyor...";
+      client.publish(topicKomut, JSON.stringify({ soru: isim }));
     }
   </script>
 </body>
