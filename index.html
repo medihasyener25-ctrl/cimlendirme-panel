@@ -1,253 +1,261 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Akıllı Çimlendirme Kontrol Paneli</title>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <style>
-    :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --card-inner: #0f172a;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --green: #22c55e;
-      --red: #ef4444;
-      --blue: #3b82f6;
-    }
-    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body {
-      margin: 0; padding: 16px; background: var(--bg); color: var(--text);
-      display: flex; flex-direction: column; align-items: center; gap: 16px;
-    }
-    .box {
-      width: 100%; max-width: 480px; background: var(--card);
-      border-radius: 16px; padding: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-    }
-    .header { display: flex; justify-content: space-between; align-items: center; }
-    .title { font-size: 1.25rem; font-weight: 700; }
-    .sub { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
-    .badge {
-      padding: 6px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
-      background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3);
-    }
-    .badge.online {
-      background: rgba(34, 197, 94, 0.15); color: var(--green); border-color: rgba(34, 197, 94, 0.3);
-    }
-    .grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-    }
-    .stat {
-      background: var(--card-inner); border-radius: 12px; padding: 14px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-      border: 1px solid rgba(255,255,255,0.05);
-    }
-    .stat-label { font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
-    .stat-val { font-size: 1.2rem; font-weight: 700; }
-    .ok { color: var(--green); }
-    .err { color: var(--red); }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14532d">
+<title>Akıllı Sera</title>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<style>
+  :root{--bg:#f1f5f0;--card:#fff;--ink:#14281d;--mut:#5b6b60;--ok:#15803d;--bad:#b91c1c;--warn:#b45309;--acc:#14532d;--line:#dde5dc}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  header{background:var(--acc);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+  header h1{font-size:18px;margin:0}
+  .chip{font-size:13px;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.18)}
+  .chip.on{background:#16a34a}.chip.off{background:#b91c1c}
+  main{max-width:560px;margin:0 auto;padding:16px;display:grid;gap:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .card h2{margin:0 0 6px;font-size:13px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .big{font-size:40px;font-weight:700}
+  .big small{font-size:16px;color:var(--mut);font-weight:500}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .state{font-size:22px;font-weight:700}
+  .ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+  .sub{font-size:12px;color:var(--mut);margin-top:4px}
 
-    .led-wrap { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
-    .led {
-      width: 14px; height: 14px; border-radius: 50%;
-      background: #475569; box-shadow: 0 0 4px rgba(0,0,0,0.5);
-      transition: all 0.3s ease;
-    }
-    .led.on {
-      background: var(--green);
-      box-shadow: 0 0 12px var(--green), 0 0 20px rgba(34, 197, 94, 0.6);
-      animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-      0% { transform: scale(0.95); opacity: 0.85; }
-      50% { transform: scale(1.1); opacity: 1; }
-      100% { transform: scale(0.95); opacity: 0.85; }
-    }
+  /* Dinamik Buton Stilleri */
+  button{font:inherit;font-weight:600;border:2px solid transparent;border-radius:10px;padding:12px 16px;background:var(--acc);color:#fff;cursor:pointer;width:100%;transition:all .18s ease}
+  button:active{transform:scale(0.97)}
+  button.sec{background:#e5ece4;color:var(--ink)}
+  button.btn-idle{background:#e5ece4;color:var(--mut);border-color:#d4dfd3}
+  button.btn-on{background:#16a34a;color:#fff;box-shadow:0 3px 10px rgba(22,163,74,.28)}
+  button.btn-off{background:#475569;color:#fff;box-shadow:0 3px 10px rgba(71,85,105,.25)}
+  button.btn-pending{opacity:.65;transform:scale(0.98)}
+  button:disabled{opacity:.4;cursor:not-allowed}
 
-    .sec-title { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
-    .btn-tapo {
-      width: 100%; padding: 16px; border: none; border-radius: 12px;
-      font-size: 1.05rem; font-weight: 700; color: #fff; cursor: pointer;
-      background: var(--red); transition: background 0.2s, transform 0.1s;
-    }
-    .btn-tapo.on { background: var(--green); }
-    .btn-tapo:active { transform: scale(0.98); }
-
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-    .chip {
-      background: #334155; color: var(--text); border: none; border-radius: 999px;
-      padding: 6px 14px; font-size: 0.85rem; cursor: pointer;
-    }
-    .chip:hover { background: var(--blue); }
-    .chat-box {
-      background: var(--card-inner); border-radius: 10px; padding: 12px;
-      font-size: 0.9rem; color: #cbd5e1; min-height: 48px; line-height: 1.4;
-    }
-    .status-note {
-      font-size: 0.78rem; color: var(--muted); text-align: center; margin-top: 8px;
-    }
-  </style>
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  input{font:inherit;width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;margin:6px 0}
+  label.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--mut);margin:6px 0 12px}
+  label.chk input{width:auto;margin:0}
+  #err{color:var(--bad);font-size:14px;min-height:20px;margin-bottom:8px}
+  .hide{display:none}
+  a.out{display:block;text-align:center;font-size:13px;color:var(--mut);margin-top:6px;cursor:pointer}
+</style>
 </head>
 <body>
+<header><h1>🌱 Akıllı Sera</h1><span id="baglanti" class="chip">Bağlı değil</span></header>
+<main>
 
-  <div class="box">
-    <div class="header">
-      <div>
-        <div class="title">Çimlendirme Ünitesi</div>
-        <div class="sub" id="devIdText">ID: Yükleniyor...</div>
-      </div>
-      <div class="badge" id="connBadge">Çevrimdışı</div>
+  <section id="giris" class="card">
+    <h2>Giriş</h2>
+    <input id="kul" placeholder="Kullanıcı adı" autocomplete="username">
+    <input id="sif" type="password" placeholder="Şifre" autocomplete="current-password">
+    <label class="chk"><input type="checkbox" id="hatirla"> Bu cihazda hatırla</label>
+    <div id="err"></div>
+    <button id="btnBaglan">Bağlan</button>
+  </section>
+
+  <section id="panel" class="hide">
+    <div class="card">
+      <h2>Cihaz</h2>
+      <div class="state" id="cihazDurum">—</div>
+      <div class="sub" id="guncel">Veri bekleniyor…</div>
     </div>
-  </div>
 
-  <div class="box">
-    <div class="grid">
-      <div class="stat">
-        <div class="stat-label">Su Seviyesi</div>
-        <div class="stat-val" id="suVal">-</div>
+    <div class="card">
+      <h2>TDS (iletkenlik)</h2>
+      <div class="big"><span id="tds">—</span> <small>ppm</small></div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <h2>Su seviyesi</h2>
+        <div class="state" id="su">—</div>
       </div>
-      <div class="stat">
-        <div class="stat-label">Su Pompası Durumu</div>
-        <div class="led-wrap">
-          <span class="led" id="pompaLed"></span>
-          <span class="stat-val" id="pompaText" style="font-size: 1rem;">Kapalı</span>
-        </div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Besin / TDS</div>
-        <div class="stat-val" id="tdsVal">- ppm</div>
-      </div>
-      <div class="stat">
-        <div class="stat-label">Aktif Reçete</div>
-        <div class="stat-val" id="tohumVal" style="font-size: 1rem;">-</div>
+      <div class="card">
+        <h2>Pompa</h2>
+        <div class="state" id="pompa">—</div>
+        <div class="sub" id="pompaHata"></div>
       </div>
     </div>
-    <div class="status-note" id="bilgiNotu">Sistem durumu bekleniyor...</div>
-  </div>
 
-  <div class="box">
-    <div class="sec-title">Ana Güç Kontrolü (Tapo Priz)</div>
-    <button class="btn-tapo" id="btnTapo" onclick="toggleTapo()">Ana Güç (Tapo): KAPALI</button>
-  </div>
-
-  <div class="box">
-    <div class="sec-title">Tohum Reçete Asistanı</div>
-    <div class="chips">
-      <button class="chip" onclick="secTohum('Maş Fasulyesi')">Maş Fasulyesi</button>
-      <button class="chip" onclick="secTohum('Yonca')">Yonca</button>
-      <button class="chip" onclick="secTohum('Brokoli')">Brokoli</button>
-      <button class="chip" onclick="secTohum('Mercimek')">Mercimek</button>
+    <div class="card">
+      <h2>Makine (Tapo Priz)</h2>
+      <div class="state" id="makineDurumText">—</div>
+      <div class="sub" id="makineAlt">Durum bilgisi bekleniyor…</div>
+      <div class="btns">
+        <button id="makineAc" class="btn-idle">Aç</button>
+        <button id="makineKapat" class="btn-idle">Kapat</button>
+      </div>
     </div>
-    <div class="chat-box" id="chatBox">Reçete seçmek için yukarıdaki tohumlara dokunun.</div>
-  </div>
 
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const deviceId = (params.get("id") || "DCAF2CE81F84").trim();
-    document.getElementById("devIdText").innerText = "ID: " + deviceId;
+    <div class="card">
+      <h2>Test: kart LED'i</h2>
+      <div class="btns">
+        <button id="ledAc" class="btn-idle">LED aç</button>
+        <button id="ledKapat" class="btn-idle">LED kapat</button>
+      </div>
+    </div>
 
-    const topicDurum  = `sera/${deviceId}/durum`;
-    const topicKomut  = `sera/${deviceId}/komut`;
-    const topicOnline = `sera/${deviceId}/online`;
-    const topicChat   = `sera/${deviceId}/chat`;
+    <a class="out" id="cikis">Çıkış yap</a>
+  </section>
+</main>
 
-    let tapoAcik = false;
-    let sonVeriZamani = 0;
+<script>
+const HOST = "d8a01ed0.ala.eu-central-1.emqxsl.com";
+const WSS_PORT = 8084;
+const CIHAZ = "sera01";
+const T = s => "sera/" + CIHAZ + "/" + s;
 
-    const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt", {
-      clientId: "WebPanel_" + Math.random().toString(16).substr(2, 6),
-      clean: true,
-      reconnectPeriod: 3000
-    });
+const $ = id => document.getElementById(id);
+let client = null;
 
-    function setOnline(durum) {
-      const badge = document.getElementById("connBadge");
-      if (durum) {
-        badge.innerText = "Çevrimiçi";
-        badge.classList.add("online");
-      } else {
-        badge.innerText = "Çevrimdışı";
-        badge.classList.remove("online");
-      }
-    }
+function saklaOku(){
+  try { return JSON.parse(localStorage.getItem("sera_giris") || "null"); } catch(e){ return null; }
+}
+function saklaYaz(v){
+  try { v ? localStorage.setItem("sera_giris", JSON.stringify(v)) : localStorage.removeItem("sera_giris"); } catch(e){}
+}
 
-    client.on("connect", () => {
-      client.subscribe([topicDurum, topicOnline, topicChat]);
-    });
+function baglantiChip(metin, sinif){
+  const c = $("baglanti");
+  c.textContent = metin;
+  c.className = "chip " + (sinif || "");
+}
 
-    client.on("message", (topic, payload) => {
-      const msg = payload.toString();
-      if (topic === topicOnline) {
-        setOnline(msg === "1");
-      } else if (topic === topicDurum) {
-        setOnline(true);
-        sonVeriZamani = Date.now();
-        try {
-          const d = JSON.parse(msg);
-          
-          const suEl = document.getElementById("suVal");
-          if (d.su) {
-            suEl.innerText = "Yeterli";
-            suEl.className = "stat-val ok";
-          } else {
-            suEl.innerText = "Su Bitti!";
-            suEl.className = "stat-val err";
-          }
+function butonDurumGuncelle(acikMi){
+  const btnAc = $("makineAc");
+  const btnKapat = $("makineKapat");
+  const txt = $("makineDurumText");
+  const alt = $("makineAlt");
 
-          const ledEl = document.getElementById("pompaLed");
-          const pText = document.getElementById("pompaText");
-          if (d.pompa) {
-            ledEl.classList.add("on");
-            pText.innerText = "Çalışıyor";
-            pText.className = "stat-val ok";
-          } else {
-            ledEl.classList.remove("on");
-            pText.innerText = "Kapalı";
-            pText.className = "stat-val";
-          }
+  btnAc.classList.remove("btn-pending");
+  btnKapat.classList.remove("btn-pending");
 
-          if (d.tds !== undefined) document.getElementById("tdsVal").innerText = d.tds + " ppm";
-          if (d.tohum) document.getElementById("tohumVal").innerText = d.tohum;
-          if (d.bilgi) document.getElementById("bilgiNotu").innerText = "Durum: " + d.bilgi;
+  if (acikMi){
+    btnAc.className = "btn-on";
+    btnAc.textContent = "Açık ✓";
+    btnKapat.className = "btn-idle";
+    btnKapat.textContent = "Kapat";
+    txt.textContent = "AÇIK";
+    txt.className = "state ok";
+    alt.textContent = "Priz aktif, enerji veriliyor";
+  } else {
+    btnAc.className = "btn-idle";
+    btnAc.textContent = "Aç";
+    btnKapat.className = "btn-off";
+    btnKapat.textContent = "Kapalı ✓";
+    txt.textContent = "KAPALI";
+    txt.className = "state bad";
+    alt.textContent = "Priz kapalı";
+  }
+}
 
-          if (d.guc !== undefined) {
-            tapoAcik = d.guc;
-            guncelleTapoButon();
-          }
-        } catch (e) {}
-      } else if (topic === topicChat) {
-        document.getElementById("chatBox").innerText = msg;
-      }
-    });
+function ledButonGuncelle(acikMi){
+  $("ledAc").className = acikMi ? "btn-on" : "btn-idle";
+  $("ledKapat").className = acikMi ? "btn-idle" : "btn-off";
+}
 
-    setInterval(() => {
-      if (sonVeriZamani > 0 && Date.now() - sonVeriZamani > 10000) {
-        setOnline(false);
-      }
-    }, 3000);
+function baglan(kul, sif){
+  $("err").textContent = "";
+  baglantiChip("Bağlanıyor…");
+  if (client) { try { client.end(true); } catch(e){} }
 
-    function guncelleTapoButon() {
-      const btn = document.getElementById("btnTapo");
-      if (tapoAcik) {
-        btn.innerText = "Ana Güç (Tapo): AÇIK";
-        btn.classList.add("on");
-      } else {
-        btn.innerText = "Ana Güç (Tapo): KAPALI";
-        btn.classList.remove("on");
-      }
-    }
+  client = mqtt.connect("wss://" + HOST + ":" + WSS_PORT + "/mqtt", {
+    username: kul,
+    password: sif,
+    clientId: "panel-" + Math.random().toString(16).slice(2, 10),
+    reconnectPeriod: 4000,
+    connectTimeout: 10000
+  });
 
-    function toggleTapo() {
-      tapoAcik = !tapoAcik;
-      guncelleTapoButon();
-      client.publish(topicKomut, JSON.stringify({ guc: tapoAcik }));
-    }
+  client.on("connect", () => {
+    baglantiChip("Bağlı", "on");
+    $("giris").classList.add("hide");
+    $("panel").classList.remove("hide");
+    client.subscribe("sera/" + CIHAZ + "/#", { qos: 1 });
+    if ($("hatirla").checked) saklaYaz({kul, sif});
+  });
+  client.on("reconnect", () => baglantiChip("Yeniden bağlanıyor…"));
+  client.on("close", () => baglantiChip("Bağlı değil"));
+  client.on("error", e => {
+    $("err").textContent = "Bağlantı hatası: kullanıcı adı/şifre veya internet kontrol edilmeli.";
+    $("giris").classList.remove("hide");
+    $("panel").classList.add("hide");
+    baglantiChip("Hata", "off");
+  });
+  client.on("message", (konu, veri) => {
+    const m = veri.toString().trim();
+    const k = konu.replace("sera/" + CIHAZ + "/", "");
+    ekranGuncelle(k, m);
+  });
+}
 
-    function secTohum(isim) {
-      document.getElementById("chatBox").innerText = isim + " reçetesi gönderiliyor...";
-      client.publish(topicKomut, JSON.stringify({ soru: isim }));
-    }
-  </script>
+function ekranGuncelle(k, m){
+  if (k === "durum"){
+    $("cihazDurum").textContent = m === "online" ? "Çevrimiçi" : "Çevrimdışı";
+    $("cihazDurum").className = "state " + (m === "online" ? "ok" : "bad");
+  } else if (k === "tds"){
+    $("tds").textContent = m;
+    $("guncel").textContent = "Son veri: " + new Date().toLocaleTimeString("tr-TR");
+  } else if (k === "su_seviyesi"){
+    $("su").textContent = m === "1" ? "Yeterli" : "DÜŞÜK";
+    $("su").className = "state " + (m === "1" ? "ok" : "bad");
+  } else if (k === "pompa_durum"){
+    $("pompa").textContent = m === "1" ? "Çalışıyor" : "Kapalı";
+    $("pompa").className = "state " + (m === "1" ? "warn" : "");
+  } else if (k === "pompa_hata"){
+    const t = {ok:"", zaman_asimi:"Zaman aşımı uyarısı", kilitli:"Pompa kilitli, kontrol et"};
+    $("pompaHata").textContent = t[m] ?? m;
+    $("pompaHata").className = "sub " + (m === "ok" ? "" : "bad");
+  } else if (k === "makine_durum"){
+    butonDurumGuncelle(m === "1");
+  } else if (k === "led_komut"){
+    ledButonGuncelle(m === "1");
+  }
+}
+
+function yayinla(konu, deger){
+  if (client && client.connected) client.publish(T(konu), deger, { qos: 1, retain: true });
+}
+
+$("btnBaglan").onclick = () => {
+  const kul = $("kul").value.trim(), sif = $("sif").value;
+  if (!kul || !sif) { $("err").textContent = "Kullanıcı adı ve şifre gerekli."; return; }
+  baglan(kul, sif);
+};
+
+$("makineAc").onclick = () => {
+  $("makineAc").classList.add("btn-pending");
+  $("makineAlt").textContent = "Açma komutu gönderiliyor…";
+  yayinla("makine_komut", "1");
+};
+
+$("makineKapat").onclick = () => {
+  $("makineKapat").classList.add("btn-pending");
+  $("makineAlt").textContent = "Kapatma komutu gönderiliyor…";
+  yayinla("makine_komut", "0");
+};
+
+$("ledAc").onclick = () => {
+  ledButonGuncelle(true);
+  yayinla("led_komut", "1");
+};
+
+$("ledKapat").onclick = () => {
+  ledButonGuncelle(false);
+  yayinla("led_komut", "0");
+};
+
+$("cikis").onclick = () => {
+  saklaYaz(null);
+  if (client) client.end(true);
+  location.reload();
+};
+
+const kayit = saklaOku();
+if (kayit) { $("kul").value = kayit.kul; $("sif").value = kayit.sif; $("hatirla").checked = true; baglan(kayit.kul, kayit.sif); }
+</script>
 </body>
 </html>
